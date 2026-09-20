@@ -34,7 +34,10 @@ class WidgetOut(WidgetBase):
         from_attributes = True
         
 class SubmissionCreate(BaseModel):
-    data: dict
+    model_config = {"extra": "forbid"}
+
+    data: dict = Field(..., max_length=20)
+    honeypot: Optional[str] = Field(default=None, max_length=0)
 
 
 class SubmissionOut(BaseModel):
