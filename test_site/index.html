@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Customer Test Site</title>
+</head>
+<body>
+  <h1>This is some other website</h1>
+  <p>Below is an embedded widget, loaded from a different origin (port 8000):</p>
+
+  <div id="my-widget"></div>
+
+  <script>
+    const WIDGET_ID = "YOUR_WIDGET_ID";
+    const API_BASE = "http://127.0.0.1:8000";
+
+    fetch(`${API_BASE}/widgets/${WIDGET_ID}/config`)
+      .then(res => res.json())
+      .then(config => {
+        console.log("Loaded widget config:", config);
+      })
+      .catch(err => {
+        console.error("Failed to load widget:", err);
+      });
+  </script>
+</body>
+</html>

@@ -3,12 +3,20 @@ from fastapi.responses import JSONResponse
 from . import models
 from .database import engine
 from .router import widgets, submissions
+from fastapi.middleware.cors import CORSMiddleware
 
 models.Base.metadata.create_all(bind=engine)
 
 MAX_BODY_BYTES = 10_000
 
 app = FastAPI(title="Widget & Lead-Capture Platform")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
 
 app.include_router(widgets.router)
 app.include_router(submissions.router)

@@ -78,3 +78,18 @@ def delete_widget(
         raise HTTPException(status_code=404, detail="Widget not found")
     db.delete(widget)
     db.commit()
+    
+@router.get("/{widget_id}/config")
+def get_widget_config(widget_id: str, db: Session = Depends(get_db)):
+    widget = db.query(models.Widget).filter(models.Widget.id == widget_id).first()
+    if not widget:
+        raise HTTPException(status_code=404, detail="Widget not found")
+    return {
+        "id": widget.id,
+        "type": widget.type,
+        "title": widget.title,
+        "description": widget.description,
+        "fields": widget.fields,
+        "button_text": widget.button_text,
+        "display_options": widget.display_options,
+    }
