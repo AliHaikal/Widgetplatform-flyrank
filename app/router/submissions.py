@@ -2,11 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from .. import models, schemas
 from ..database import get_db
+from ..limiter import limiter
 
 router = APIRouter(prefix="/submissions", tags=["submissions"])
 
 
 @router.post("", response_model=schemas.SubmissionOut, status_code=201)
+@limiter.limit("5/minute")
 def create_submission(
     widget_id: str,
     submission: schemas.SubmissionCreate,
