@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from .. import models, schemas
 from ..database import get_db
 from ..limiter import limiter
+from ..geo import lookup_geo
 
 router = APIRouter(prefix="/submissions", tags=["submissions"])
 
@@ -19,11 +20,16 @@ def create_submission(
     if not widget:
         raise HTTPException(status_code=404, detail="Widget not found")
 
+    ip = request.client.host
+    geo = lookup_geo(ip) or {}
+
     db_submission = models.Submission(
         widget_id=widget_id,
         tenant_id=widget.tenant_id,
         data=submission.data,
-        ip_address=request.client.host,
+        ip_address=ip,
+        country=geo.get("country"),
+        city=geo.get("city"),
     )
     db.add(db_submission)
     db.commit()
