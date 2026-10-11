@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException ,Response
 from sqlalchemy.orm import Session
 from .. import models, schemas
 from ..database import get_db
@@ -32,18 +32,25 @@ def list_widgets(
     return db.query(models.Widget).filter(models.Widget.tenant_id == tenant_id).all()
 
 
-@router.get("/{widget_id}", response_model=schemas.WidgetOut)
-def get_widget(
+@router.get("/{widget_id}/config")
+def get_widget_config(
     widget_id: str,
+    response: Response,
     db: Session = Depends(get_db),
-    tenant_id: str = Depends(get_current_tenant),
 ):
-    widget = db.query(models.Widget).filter(
-        models.Widget.id == widget_id, models.Widget.tenant_id == tenant_id
-    ).first()
+    widget = db.query(models.Widget).filter(models.Widget.id == widget_id).first()
     if not widget:
         raise HTTPException(status_code=404, detail="Widget not found")
-    return widget
+    response.headers["Cache-Control"] = "public, max-age=60"
+    return {
+        "id": widget.id,
+        "type": widget.type,
+        "title": widget.title,
+        "description": widget.description,
+        "fields": widget.fields,
+        "button_text": widget.button_text,
+        "display_options": widget.display_options,
+    }
 
 
 @router.patch("/{widget_id}", response_model=schemas.WidgetOut)

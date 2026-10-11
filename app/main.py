@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from . import models
 from .database import engine
-from .router import widgets, submissions
+from .router import widgets, submissions , delivery
 from fastapi.middleware.cors import CORSMiddleware
 
 models.Base.metadata.create_all(bind=engine)
@@ -26,7 +26,7 @@ app.add_middleware(
 
 app.include_router(widgets.router)
 app.include_router(submissions.router)
-
+app.include_router(delivery.router)
 
 @app.get("/health")
 def health():
