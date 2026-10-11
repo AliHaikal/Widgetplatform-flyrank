@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException ,Response
+from fastapi import APIRouter,Depends,HTTPException,Response,Request
 from sqlalchemy.orm import Session
 from .. import models, schemas
 from ..database import get_db
@@ -99,4 +99,21 @@ def get_widget_config(widget_id: str, db: Session = Depends(get_db)):
         "fields": widget.fields,
         "button_text": widget.button_text,
         "display_options": widget.display_options,
+    }
+    
+@router.get("/{widget_id}/embed")
+def get_embed_snippet(
+    widget_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    tenant_id: str = Depends(get_current_tenant),
+):
+    widget = db.query(models.Widget).filter(
+        models.Widget.id == widget_id, models.Widget.tenant_id == tenant_id
+    ).first()
+    if not widget:
+        raise HTTPException(status_code=404, detail="Widget not found")
+    base = str(request.base_url).rstrip("/")
+    return {
+        "snippet": f'<script src="{base}/widget.v1.js?id={widget.id}"></script>'
     }
