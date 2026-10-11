@@ -2,13 +2,12 @@ from fastapi import APIRouter,Depends,HTTPException,Response,Request
 from sqlalchemy.orm import Session
 from .. import models, schemas
 from ..database import get_db
+from ..auth import get_current_tenant
 
 router = APIRouter(prefix="/widgets", tags=["widgets"])
 
 
-def get_current_tenant():
-    # placeholder — replaced with real Supabase JWT auth in the next step
-    return "dev-tenant"
+
 
 
 @router.post("", response_model=schemas.WidgetOut, status_code=201)
@@ -85,6 +84,19 @@ def delete_widget(
         raise HTTPException(status_code=404, detail="Widget not found")
     db.delete(widget)
     db.commit()
+
+@router.get("/{widget_id}", response_model=schemas.WidgetOut)
+def get_widget(
+    widget_id: str,
+    db: Session = Depends(get_db),
+    tenant_id: str = Depends(get_current_tenant),
+):
+    widget = db.query(models.Widget).filter(
+        models.Widget.id == widget_id, models.Widget.tenant_id == tenant_id
+    ).first()
+    if not widget:
+        raise HTTPException(status_code=404, detail="Widget not found")
+    return widget
     
 @router.get("/{widget_id}/config")
 def get_widget_config(widget_id: str, db: Session = Depends(get_db)):

@@ -3,7 +3,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from .. import models, schemas
 from ..database import get_db
-from .widgets import get_current_tenant
+from ..auth import get_current_tenant
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
