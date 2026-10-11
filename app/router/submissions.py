@@ -4,7 +4,7 @@ from .. import models, schemas
 from ..database import get_db
 from ..limiter import limiter
 from ..geo import lookup_geo
-
+from ..notify import send_confirmation
 router = APIRouter(prefix="/submissions", tags=["submissions"])
 
 
@@ -34,4 +34,10 @@ def create_submission(
     db.add(db_submission)
     db.commit()
     db.refresh(db_submission)
+    try:
+        send_confirmation(widget.title, submission.data)
+    except Exception as e:
+        print(f"[email] failed, submission still saved: {e}")
+
     return db_submission
+    
