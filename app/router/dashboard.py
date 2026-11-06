@@ -1,75 +1,40 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
-from .. import models, schemas
-from ..database import get_db
+
+from .. import schemas
 from ..auth import get_current_tenant
+from ..database import get_db
+from ..services import dashboard_service
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
-def _owned_widget(db: Session, widget_id: str, tenant_id: str):
-    widget = db.query(models.Widget).filter(
-        models.Widget.id == widget_id, models.Widget.tenant_id == tenant_id
-    ).first()
-    if not widget:
-        raise HTTPException(status_code=404, detail="Widget not found")
-    return widget
+@router.get("/overview", response_model=list[schemas.WidgetOverview])
+def overview(db: Session = Depends(get_db), tenant_id: str = Depends(get_current_tenant)):
+    """Per-widget totals for the signed-in owner."""
+    return dashboard_service.overview(db, tenant_id)
 
 
-@router.get("/widgets/{widget_id}/submissions", response_model=list[schemas.SubmissionOut])
+@router.get(
+    "/widgets/{widget_id}/submissions", response_model=list[schemas.SubmissionOut]
+)
 def list_submissions(
     widget_id: str,
+    response: Response,
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     tenant_id: str = Depends(get_current_tenant),
 ):
-    _owned_widget(db, widget_id, tenant_id)
-    return (
-        db.query(models.Submission)
-        .filter(
-            models.Submission.widget_id == widget_id,
-            models.Submission.tenant_id == tenant_id,
-        )
-        .order_by(models.Submission.created_at.desc())
-        .all()
-    )
+    rows, total = dashboard_service.list_submissions(db, widget_id, tenant_id, limit, offset)
+    response.headers["X-Total-Count"] = str(total)
+    return rows
 
 
-@router.get("/widgets/{widget_id}/stats")
+@router.get("/widgets/{widget_id}/stats", response_model=schemas.WidgetStats)
 def widget_stats(
     widget_id: str,
     db: Session = Depends(get_db),
     tenant_id: str = Depends(get_current_tenant),
 ):
-    _owned_widget(db, widget_id, tenant_id)
-    base = db.query(models.Submission).filter(
-        models.Submission.widget_id == widget_id,
-        models.Submission.tenant_id == tenant_id,
-    )
-
-    total = base.count()
-
-    per_day = (
-        base.with_entities(
-            func.date(models.Submission.created_at), func.count()
-        )
-        .group_by(func.date(models.Submission.created_at))
-        .order_by(func.date(models.Submission.created_at))
-        .all()
-    )
-
-    by_country = (
-        base.with_entities(models.Submission.country, func.count())
-        .group_by(models.Submission.country)
-        .all()
-    )
-
-    return {
-        "widget_id": widget_id,
-        "total": total,
-        "per_day": [{"date": str(d), "count": c} for d, c in per_day],
-        "by_country": [
-            {"country": c or "unknown", "count": n} for c, n in by_country
-        ],
-    }
-    
+    return dashboard_service.widget_stats(db, widget_id, tenant_id)

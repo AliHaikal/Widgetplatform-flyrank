@@ -1,12 +1,34 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="utf-8">
   <title>Customer Test Site</title>
 </head>
-<body>
+<body style="font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto;">
   <h1>This is some other website</h1>
-  <p>The widget below is loaded from a different origin (port 8000):</p>
+  <p>It is served from a different origin than the API. The widget below is loaded from the API.</p>
 
-  <script src="http://127.0.0.1:8000/widget.v1.js?id=6bd83300-e34d-4db2-a38a-e01ddac62474"></script>
+  <p><small>
+    Open as <code>http://127.0.0.1:5500/?id=WIDGET_ID</code>
+    (optional <code>&amp;api=http://127.0.0.1:8000</code>).
+    A real customer would paste one line:
+    <code>&lt;script src="http://127.0.0.1:8000/widget.v2.js?id=WIDGET_ID"&gt;&lt;/script&gt;</code>
+  </small></p>
+
+  <!-- This helper only builds that one-line tag from the URL, so the demo needs no editing. -->
+  <script>
+    (function () {
+      var params = new URLSearchParams(location.search);
+      var id = params.get("id");
+      var api = params.get("api") || "http://127.0.0.1:8000";
+      if (!id) {
+        document.body.appendChild(document.createTextNode("Add ?id=<widget id> to the URL."));
+        return;
+      }
+      var s = document.createElement("script");
+      s.src = api + "/widget.v2.js?id=" + encodeURIComponent(id);
+      document.body.appendChild(s);
+    })();
+  </script>
 </body>
 </html>

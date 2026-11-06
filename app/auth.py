@@ -1,26 +1,64 @@
-import os
+"""Owner authentication.
+
+AUTH_MODE=supabase (default): the bearer token is checked against Supabase and
+the user's id becomes the tenant id.
+AUTH_MODE=dev: LOCAL DEMO/TEST ONLY. Tokens look like `dev:<tenant>` so a
+stranger can run the project without a Supabase account. Never enable in prod.
+"""
+import logging
+import re
+
 import httpx
-from dotenv import load_dotenv
-from fastapi import Header, HTTPException
-from pathlib import Path
+from fastapi import Header
 
-load_dotenv(Path(__file__).resolve().parent.parent / ".env", encoding="utf-8-sig")
+from . import config
+from .errors import AuthUnavailableError, UnauthorizedError
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
+log = logging.getLogger("app.auth")
 
-def get_current_tenant(authorization: str = Header(default=None)) -> str:
+_DEV_TOKEN = re.compile(r"^dev:([A-Za-z0-9_-]{1,64})$")
+
+
+def _bearer_token(authorization: str | None) -> str:
     if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(status_code=401, detail="Missing bearer token")
-    token = authorization.split(" ", 1)[1]
+        raise UnauthorizedError("Missing bearer token")
+    token = authorization.split(" ", 1)[1].strip()
+    if not token:
+        raise UnauthorizedError("Missing bearer token")
+    return token
+
+
+def _tenant_from_dev_token(token: str) -> str:
+    match = _DEV_TOKEN.match(token)
+    if not match:
+        raise UnauthorizedError("Invalid or expired token")
+    return match.group(1)
+
+
+def _tenant_from_supabase(token: str) -> str:
+    url = config.get("SUPABASE_URL")
+    key = config.get("SUPABASE_ANON_KEY")
+    if not url or not key:
+        log.error("SUPABASE_URL / SUPABASE_ANON_KEY are not configured")
+        raise AuthUnavailableError("Auth is not configured")
     try:
-        r = httpx.get(
-            f"{SUPABASE_URL}/auth/v1/user",
-            headers={"apikey": SUPABASE_ANON_KEY, "Authorization": f"Bearer {token}"},
+        response = httpx.get(
+            f"{url.rstrip('/')}/auth/v1/user",
+            headers={"apikey": key, "Authorization": f"Bearer {token}"},
             timeout=5.0,
         )
     except httpx.HTTPError:
-        raise HTTPException(status_code=503, detail="Auth service unavailable")
-    if r.status_code != 200:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-    return r.json()["id"]
+        raise AuthUnavailableError()
+    if response.status_code != 200:
+        raise UnauthorizedError("Invalid or expired token")
+    try:
+        return response.json()["id"]
+    except (ValueError, KeyError):
+        raise UnauthorizedError("Invalid or expired token")
+
+
+def get_current_tenant(authorization: str | None = Header(default=None)) -> str:
+    token = _bearer_token(authorization)
+    if (config.get("AUTH_MODE", "supabase") or "supabase").lower() == "dev":
+        return _tenant_from_dev_token(token)
+    return _tenant_from_supabase(token)

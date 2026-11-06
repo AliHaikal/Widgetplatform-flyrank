@@ -1,42 +1,45 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+"""Public submission endpoint (any origin, CORS-enabled, protected).
+
+Protection order: rate limit and body size are enforced by middleware before
+this function runs; Pydantic validates the shape; the service validates values
+against the widget; the confirmation email is a background job.
+"""
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, Request, Response
 from sqlalchemy.orm import Session
-from .. import models, schemas
+
+from .. import schemas
 from ..database import get_db
-from ..limiter import limiter
-from ..geo import lookup_geo
+from ..net import client_ip
 from ..notify import send_with_retry
+from ..services import submission_service
 
 router = APIRouter(prefix="/submissions", tags=["submissions"])
 
 
 @router.post("", response_model=schemas.SubmissionOut, status_code=201)
-@limiter.limit("5/minute")
 def create_submission(
     widget_id: str,
-    submission: schemas.SubmissionCreate,
+    payload: schemas.SubmissionCreate,
     request: Request,
+    response: Response,
     background_tasks: BackgroundTasks,
+    idempotency_key: str | None = Header(
+        default=None,
+        alias="Idempotency-Key",
+        min_length=8,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9_.:-]+$",
+    ),
     db: Session = Depends(get_db),
 ):
-    widget = db.query(models.Widget).filter(models.Widget.id == widget_id).first()
-    if not widget:
-        raise HTTPException(status_code=404, detail="Widget not found")
-
-    ip = request.client.host
-    geo = lookup_geo(ip) or {}
-
-    db_submission = models.Submission(
-        widget_id=widget_id,
-        tenant_id=widget.tenant_id,
-        data=submission.data,
-        ip_address=ip,
-        country=geo.get("country"),
-        city=geo.get("city"),
+    result = submission_service.create_submission(
+        db, widget_id, payload, client_ip(request.scope), idempotency_key
     )
-    db.add(db_submission)
-    db.commit()
-    db.refresh(db_submission)
+    if not result.created:
+        # Same key seen before: return the original row, store nothing, send nothing.
+        response.status_code = 200
+        response.headers["Idempotent-Replay"] = "true"
+        return result.submission
 
-    background_tasks.add_task(send_with_retry, widget.title, submission.data)
-
-    return db_submission
+    background_tasks.add_task(send_with_retry, result.widget_title, result.submission.data)
+    return result.submission
