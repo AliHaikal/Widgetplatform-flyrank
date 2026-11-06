@@ -1,0 +1,21 @@
+run: alembic upgrade head && uvicorn app.main:app --host 127.0.0.1 --port 8000
+seed: python -m scripts.seed
+test: pytest
+base_url: http://127.0.0.1:8000
+env:
+  AUTH_MODE: dev   # demo tokens "dev:tenant-a" / "dev:tenant-b"; use "supabase" for real JWTs
+endpoints:
+  - POST   /widgets                          # auth
+  - GET    /widgets                          # auth, own tenant only
+  - GET    /widgets/{id}                     # auth
+  - PATCH  /widgets/{id}                     # auth
+  - DELETE /widgets/{id}                     # auth
+  - GET    /widgets/{id}/embed               # auth, returns <script> snippet
+  - GET    /widgets/{id}/config              # public, Cache-Control max-age=60
+  - GET    /widget.v1.js                     # public, immutable, versioned bundle
+  - GET    /widget.v2.js                     # public, immutable, versioned bundle
+  - POST   /submissions?widget_id={id}       # public, CORS, Idempotency-Key, rate limited
+  - GET    /dashboard/overview               # auth
+  - GET    /dashboard/widgets/{id}/submissions  # auth, limit/offset, X-Total-Count
+  - GET    /dashboard/widgets/{id}/stats     # auth
+  - GET    /health
