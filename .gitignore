@@ -1,6 +1,9 @@
 venv/
+.venv/
 __pycache__/
 *.pyc
+.pytest_cache/
 .env
 *.db
 tokens.ps1
+uvicorn-log.txt
